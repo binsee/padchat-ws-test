@@ -27,13 +27,19 @@ class Test extends EventEmitter {
     this.connected        = false
     this._autoRetry       = false
     this._disconnectCount = 0
+    this._lastStartTime   = 0
     this.ws               = {}
     this.start()
   }
 
   async start() {
+    // 限制启动ws连接间隔时间
+    if (Date.now() - this._lastStartTime < 200) {
+      throw new Error('建立ws连接时间间隔过短!')
+    }
+    this._lastStartTime = Date.now()
     if (this.ws instanceof Websocket && this.ws.readyState === this.ws.OPEN) {
-      this.ws.close()
+      this.ws.terminate()
     }
     this.ws = null
     this.ws = new Websocket(this.url)
@@ -110,6 +116,9 @@ class Test extends EventEmitter {
  * @param {any} key
  */
 function notify(title, desp, key) {
+  if (!key) {
+    return
+  }
   const requestData = { text: `服务端运行状态监测 ${title}`, desp: desp }
   // const url         = `http://sc.ftqq.com/${key}.send`
   const url = `http://swan.botorange.com/wechat/swan/${key}.send`
@@ -118,8 +127,11 @@ function notify(title, desp, key) {
       log.error(`request to server jiang err! msg is ${err.message}`)
     } else {
       if (res.statusCode === 200) {
-        let jsonStr = JSON.parse(body)
-        log.debug(`#SWAN Return: ${JSON.stringify(jsonStr)}`)
+        try {
+          let jsonStr = JSON.parse(body)
+          log.debug(`#SWAN Return: ${JSON.stringify(jsonStr)}`)
+        } catch (e) {
+        }
       }
     }
   })
@@ -142,15 +154,16 @@ function newTest(server, key, timeout) {
   const obj  = new Test(`ws://${server}/test`)
   const test = {
     obj,
-    url         : server,
-    lastTime    : 0,
-    connectCount: 0,
-    downTime    : 0,
-    lastWarnTime: 0,
-    lastPing    : 0,
-    maxHeart    : 0,
-    connect     : false,
-    sendDownWarn: false
+    url          : server,
+    lastTime     : 0,
+    connectCount : 0,
+    downTime     : 0,
+    lastWarnTime : 0,
+    lastCheckTime: 0,
+    lastPing     : 0,
+    maxHeart     : 0,
+    connect      : false,
+    sendDownWarn : false
   }
   obj.autoRetry = true
   obj
@@ -219,12 +232,12 @@ function newTest(server, key, timeout) {
     .on('error', e => {
       log.error('[%s] Error:', test.url, e.message)
       notify(test.url, `Error: ${e.message}`, key)
-      setTimeout(() => {
-        log.info('[%s] 从Error出延时重试', test.url)
-        obj.start()
-      }, 1000 * 60 * 10);
     })
     .on('newStart', async () => {
+      if (Date.now() - test.lastCheckTime < 10000) {
+        return
+      }
+      test.lastCheckTime = Date.now()
       await checkServer(test.url)
         .then(body => {
           log.info('[%s] checkServer ret:', test.url, body)
