@@ -1,0 +1,6 @@
+logs/
+_*/
+*.cmd
+*.log
+node_modules/
+package-lock.json
