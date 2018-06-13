@@ -207,6 +207,7 @@ function newTest(server, key) {
         if (time > test.maxHeart) {
           test.maxHeart = time
         }
+        // 心跳间隔超过27秒
         if (time > 27) {
           notify(test.url, `心跳间隔达到 ${time} 秒！`, key)
           log.warn('[%s] 服务端心跳间隔 %d 秒', test.url, time)
