@@ -138,7 +138,7 @@ async function checkServer(server) {
   })
 }
 
-function newTest(server, key) {
+function newTest(server, key, timeout) {
   const obj  = new Test(`ws://${server}/test`)
   const test = {
     obj,
@@ -207,8 +207,8 @@ function newTest(server, key) {
         if (time > test.maxHeart) {
           test.maxHeart = time
         }
-        // 心跳间隔超过27秒
-        if (time > 27) {
+        // 心跳间隔超过timeout的秒数
+        if (time > timeout) {
           notify(test.url, `心跳间隔达到 ${time} 秒！`, key)
           log.warn('[%s] 服务端心跳间隔 %d 秒', test.url, time)
         }
@@ -239,6 +239,7 @@ function newTest(server, key) {
 
 const config = {
   servers: [],   //服务器列表，ip:port
+  timeout: 20,   //心跳忍受秒数
   key    : ''    //推送key
 }
 
@@ -256,7 +257,7 @@ const testArr = []
 
 for (const server of config.servers) {
   log.info('现在创建 %s 的测试实例', server)
-  testArr.push(newTest(server, config.key))
+  testArr.push(newTest(server, config.key, config.timeout))
 }
 
 process.on('uncaughtException', e => {
