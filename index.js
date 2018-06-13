@@ -260,12 +260,12 @@ for (const server of config.servers) {
 }
 
 process.on('uncaughtException', e => {
-  notify('', 'uncaughtException: \n' + JSON.stringify(e, null, 2), config.key)
+  notify('', 'uncaughtException: \n' + e.message, config.key)
   log.error('uncaughtException:', e)
 })
 
 process.on('unhandledRejection', e => {
-  notify('', 'unhandledRejection: \n' + JSON.stringify(e, null, 2), config.key)
+  notify('', 'unhandledRejection: \n' + e.message, config.key)
   log.error('unhandledRejection:', e)
 })
 
