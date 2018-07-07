@@ -142,7 +142,7 @@ function notify(title, desp, key) {
 async function checkServer(server) {
   const url = `http://${server}`
   return new Promise((resolve, reject) => {
-    request({ url: url }, (err, res, body) => {
+    request({ url: url, timeout: 5000 }, (err, res, body) => {
       if (err) {
         reject(err)
       } else {
