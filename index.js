@@ -20,9 +20,10 @@ const log = log4js.getLogger('app')
 
 class Test extends EventEmitter {
 
-  constructor(url) {
+  constructor(server) {
     super()
-    this.url              = url
+    this.server           = server
+    this.url              = `ws://${server}/test`
     this._event           = new EventEmitter()
     this.connected        = false
     this._autoRetry       = false
@@ -41,6 +42,28 @@ class Test extends EventEmitter {
     if (this.ws instanceof Websocket && this.ws.readyState === this.ws.OPEN) {
       this.ws.terminate()
     }
+    // console.log('start() server= %s', this.server)
+    const ret = await checkServer(this.server)
+      .then(body => {
+        // console.log('checkServer server= %s, body= %s', this.server, body)
+        this.emit('newStart', null, body)
+        return true
+      })
+      .catch(e => {
+        // console.error('checkServer server= %s, err= ', this.server, e.message)
+        this.emit('newStart', e)
+        if (this.autoRetry) {
+          setTimeout(() => {
+            this.start()
+          }, 5000);
+        }
+        return false
+      })
+    // console.error('checkServer server= %s, ret= ', this.server, ret)
+    if (!ret) {
+      return
+    }
+
     this.ws = null
     this.ws = new Websocket(this.url)
       .on('message', (msg) => {
@@ -60,7 +83,7 @@ class Test extends EventEmitter {
         this.emit('close', disconnect)
         if (this.autoRetry) {
           setTimeout(() => {
-          this.start()
+            this.start()
           }, 5000);
         }
       })
@@ -73,9 +96,6 @@ class Test extends EventEmitter {
       .on('error', (e) => {
         this.emit('error', e)
       })
-    setTimeout(() => {
-      this.emit('newStart')
-    }, 200);
   }
 
   get autoRetry() {
@@ -153,7 +173,7 @@ async function checkServer(server) {
 }
 
 function newTest(server, key, timeout) {
-  const obj  = new Test(`ws://${server}/test`)
+  const obj  = new Test(server)
   const test = {
     obj,
     url          : server,
@@ -203,7 +223,7 @@ function newTest(server, key, timeout) {
       } else {
         const time  = (Date.now() - test.downTime) / 1000      //服务器挂掉
         const time2 = (Date.now() - test.lastWarnTime) / 1000  //离上次推送警告时间
-        if (time > 30 || time2 > 60 * 10) {
+        if ((time > 30 && !test.sendDownWarn) || time2 > 60 * 10) {
           if (!test.sendDownWarn) {
             notify(test.url, `已无法连接 ${time} 秒！`, key)
             test.lastWarnTime = Date.now()
@@ -232,22 +252,30 @@ function newTest(server, key, timeout) {
       test.lastPing = Date.now()
     })
     .on('error', e => {
+      if (!test.connect) {
+        return
+      }
       log.error('[%s] Error:', test.url, e.message)
       notify(test.url, `Error: ${e.message}`, key)
     })
-    .on('newStart', async () => {
-      if (Date.now() - test.lastCheckTime < 10000) {
+    .on('newStart', (e, body) => {
+      if (e && !test.downTime) {
+        test.downTime = Date.now()
+      }
+      const downTime      = (Date.now() - test.downTime) / 1000
+      const lastCheckTime = (Date.now() - test.lastCheckTime) / 1000
+      if (test.lastCheckTime && lastCheckTime < 30) {
         return
       }
       test.lastCheckTime = Date.now()
-      await checkServer(test.url)
-        .then(body => {
-          log.info('[%s] checkServer ret:', test.url, body)
-        })
-        .catch(e => {
-          log.error('[%s] checkServer Error:', test.url, e.message)
+      if (e) {
+        log.error('[%s] checkServer Error:', test.url, e.message)
+        if (downTime < 180) {
           notify(test.url, `checkServer Error: ${e.message}`, key)
-        })
+        }
+      } else {
+        log.info('[%s] checkServer ret:', test.url, body)
+      }
     })
   return test
 }
@@ -276,13 +304,13 @@ for (const server of config.servers) {
 }
 
 process.on('uncaughtException', e => {
-  notify('', 'uncaughtException: \n' + e.message, config.key)
   log.error('uncaughtException:', e)
+  notify('', 'uncaughtException: \n' + e.message, config.key)
 })
 
 process.on('unhandledRejection', e => {
-  notify('', 'unhandledRejection: \n' + e.message, config.key)
   log.error('unhandledRejection:', e)
+  notify('', 'unhandledRejection: \n' + e.message, config.key)
 })
 
 
