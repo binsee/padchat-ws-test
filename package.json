@@ -1,6 +1,6 @@
 {
   "name": "padchat-ws-test",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "用于监测ws服务器运行状态",
   "scripts": {
     "start": "node index"
