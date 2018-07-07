@@ -59,7 +59,9 @@ class Test extends EventEmitter {
         this.connected = false
         this.emit('close', disconnect)
         if (this.autoRetry) {
+          setTimeout(() => {
           this.start()
+          }, 5000);
         }
       })
       .on('ping', () => {
